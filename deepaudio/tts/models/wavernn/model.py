@@ -1,27 +1,25 @@
-from omegaconf import DictConfig
 import torch
 from torch import Tensor, nn
 
-from deepaudio.tts.models import register_model
-from deepaudio.tts.models.base import BasePLModel
 from deepaudio.tts.models.wavernn import WaveRNN
 from deepaudio.tts.modules.losses import discretized_mix_logistic_loss
 
-from .configurations import WaveRNNConfigs
 
 
-@register_model('wavernn', dataclass=WaveRNNConfigs)
 class WaveRNNModel(BasePLModel):
-    def __init__(self, configs: DictConfig):
-        super(WaveRNNModel, self).__init__(configs)
+    def __init__(self,
+                 model: WaveRNN,
+                 mode: str,
+                 optimizer: torch.optim.Optimizer,
+                 scheduler: torch.optim.lr_scheduler
+                 ):
+        super(WaveRNNModel, self).__init__()
 
-    def build_model(self):
-        self.model = WaveRNN()
-
-    def configure_criterion(self):
-        if self.configs.model.mode == 'RAW':
+        self.model = model
+        self.save_hyperparameters(logger=False, ignore=["model"])
+        if self.hparams.mode == 'RAW':
             self.criterion = nn.CrossEntropyLoss()
-        elif self.configs.model.mode == 'MOL':
+        elif self.hparams.mode == 'MOL':
             self.criterion = discretized_mix_logistic_loss()
         else:
             self.criterion = None
@@ -30,9 +28,9 @@ class WaveRNNModel(BasePLModel):
     def compute_loss(self, batch):
         wav, y, mel = batch
         y_hat = self.model(wav, mel)
-        if self.mode == 'RAW':
+        if self.hparams.mode == 'RAW':
             y_hat = y_hat.transpose([0, 2, 1]).unsqueeze(-1)
-        elif self.mode == 'MOL':
+        elif self.hparams.mode == 'MOL':
             y_hat = y_hat.type(torch.float32)
 
         y = y.unsqueeze(-1)

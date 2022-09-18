@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 import torch
 from typeguard import check_argument_types
 
-from deepaudio.tts.models.hifigan import (
+from deepaudio.tts.models.hifigan.hifigan import (
     HiFiGANMultiPeriodDiscriminator,
     HiFiGANMultiScaleDiscriminator,
     HiFiGANMultiScaleMultiPeriodDiscriminator,

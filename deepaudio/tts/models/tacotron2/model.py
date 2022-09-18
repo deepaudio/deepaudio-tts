@@ -1,83 +1,28 @@
-from omegaconf import DictConfig
+import torch
 from torch import Tensor, nn
 
-from deepaudio.tts.models import register_model
-from deepaudio.tts.models.base import BasePLModel
-from deepaudio.tts.models.tacotron2 import Tacotron2
+from pytorch_lightning import LightningModule
+from deepaudio.tts.models.tacotron2.tacotron2 import Tacotron2
 from deepaudio.tts.models.tacotron2.loss import Tacotron2Loss
 from deepaudio.tts.models.tacotron2.loss import GuidedAttentionLoss
 
 
-from .configurations import Tacotron2Configs
+class Tacotron2Model(LightningModule):
+    def __init__(self,
+                 model: Tacotron2,
+                 taco2_loss: Tacotron2Loss,
+                 use_guided_attn_loss: bool,
+                 attn_loss: GuidedAttentionLoss,
+                 optimizer: torch.optim.Optimizer,
+                 scheduler: torch.optim.lr_scheduler
+    ):
+        super(Tacotron2Model, self).__init__()
 
-
-@register_model('tacotron2', dataclass=Tacotron2Configs)
-class Tacotron2Model(BasePLModel):
-    def __init__(self, configs: DictConfig):
-        super(Tacotron2Model, self).__init__(configs)
-
-    def build_model(self):
-        self.model = Tacotron2(
-            idim=self.configs.model.idim,
-            odim=self.configs.model.odim,
-            embed_dim=self.configs.model.embed_dim,
-            elayers=self.configs.model.elayers,
-            eunits=self.configs.model.eunits,
-            econv_layers=self.configs.model.econv_layers,
-            econv_chans=self.configs.model.econv_chans,
-            econv_filts=self.configs.model.econv_filts,
-            atype=self.configs.model.atype,
-            adim=self.configs.model.adim,
-            aconv_chans=self.configs.model.aconv_chans,
-            aconv_filts=self.configs.model.aconv_filts,
-            cumulate_att_w=self.configs.model.cumulate_att_w,
-            dlayers=self.configs.model.dlayers,
-            dunits=self.configs.model.dunits,
-            prenet_layers=self.configs.model.prenet_layers,
-            prenet_units=self.configs.model.prenet_units,
-            postnet_layers=self.configs.model.postnet_layers,
-            postnet_chans=self.configs.model.postnet_chans,
-            postnet_filts=self.configs.model.postnet_filts,
-            output_activation=self.configs.model.output_activation,
-            use_batch_norm=self.configs.model.use_batch_norm,
-            use_concate=self.configs.model.use_concate,
-            use_residual=self.configs.model.use_residual,
-            reduction_factor=self.configs.model.reduction_factor,
-            spks=self.configs.model.spks,
-            langs=self.configs.model.langs,
-            spk_embed_dim=self.configs.model.spk_embed_dim,
-            spk_embed_integration_type=self.configs.model.spk_embed_integration_type,
-            use_gst=self.configs.model.use_gst,
-            gst_tokens=self.configs.model.gst_tokens,
-            gst_heads=self.configs.model.gst_heads,
-            gst_conv_layers=self.configs.model.gst_conv_layers,
-            gst_conv_chans_list=self.configs.model.gst_conv_chans_list,
-            gst_conv_kernel_size=self.configs.model.gst_conv_kernel_size,
-            gst_conv_stride=self.configs.model.gst_conv_stride,
-            gst_gru_layers=self.configs.model.gst_gru_layers,
-            gst_gru_units=self.configs.model.gst_gru_units,
-            dropout_rate=self.configs.model.dropout_rate,
-            zoneout_rate=self.configs.model.zoneout_rate,
-            use_masking=self.configs.model.use_masking,
-            use_weighted_masking=self.configs.model.use_weighted_masking,
-            bce_pos_weight=self.configs.model.bce_pos_weight,
-            loss_type=self.configs.model.loss_type,
-            use_guided_attn_loss=self.configs.model.use_guided_attn_loss,
-            guided_attn_loss_sigma=self.configs.model.guided_attn_loss_sigma,
-            guided_attn_loss_lambda=self.configs.model.guided_attn_loss_lambda
-        )
-
-    def configure_criterion(self):
-        self.taco2_loss = Tacotron2Loss(
-            use_masking=self.configs.model.use_masking,
-            use_weighted_masking=self.configs.model.use_weighted_masking,
-            bce_pos_weight=self.configs.model.bce_pos_weight,
-        )
+        self.model = model
+        self.taco2_loss = taco2_loss
+        self.use_guided_attn_loss = use_guided_attn_loss
         if self.use_guided_attn_loss:
-            self.attn_loss = GuidedAttentionLoss(
-                sigma=self.configs.model.guided_attn_loss_sigma,
-                alpha=self.configs.model.guided_attn_loss_lambda,
-            )
+            self.attn_loss = attn_loss
 
     def compute_loss(self, batch):
         losses_dict = {}
@@ -136,6 +81,20 @@ class Tacotron2Model(BasePLModel):
         losses_dict = self.compute_loss(batch)
         loss = losses_dict.pop('loss')
         losses_dict['val_loss'] = loss
+        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return losses_dict
 
+    def configure_optimizers(self):
+        optimizer = self.hparams.optimizer(params=self.parameters())
+        scheduler = self.hparams.scheduler(optimizer=optimizer)
+
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "monitor": "val/loss",
+                "interval": "epoch",
+                "frequency": 1,
+            },
+        }
 

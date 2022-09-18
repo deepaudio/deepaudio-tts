@@ -10,12 +10,8 @@ import torch.nn.functional as F
 from typeguard import check_argument_types
 
 from deepaudio.tts.modules.nets_utils import initialize
-from deepaudio.tts.models.abs_tts import AbsTTS
 from deepaudio.tts.modules.style_encoder import StyleEncoder
-from deepaudio.tts.models.transformer_tts.loss import (
-    GuidedMultiHeadAttentionLoss,
-    TransformerLoss,
-)
+
 from deepaudio.tts.modules.nets_utils import make_non_pad_mask, make_pad_mask
 from deepaudio.tts.modules.tacotron2.decoder import Postnet
 from deepaudio.tts.modules.tacotron2.decoder import Prenet as DecoderPrenet
@@ -30,7 +26,7 @@ from deepaudio.tts.modules.transformer.encoder import Encoder
 from deepaudio.tts.modules.transformer.mask import subsequent_mask
 
 
-class Transformer(AbsTTS):
+class Transformer(torch.nn.Module):
     """Transformer-TTS module.
 
     This is a module of text-to-speech Transformer described in `Neural Speech Synthesis
@@ -358,18 +354,6 @@ class Transformer(AbsTTS):
             )
         )
 
-        # define loss function
-        self.criterion = TransformerLoss(
-            use_masking=use_masking,
-            use_weighted_masking=use_weighted_masking,
-            bce_pos_weight=bce_pos_weight,
-        )
-        if self.use_guided_attn_loss:
-            self.attn_criterion = GuidedMultiHeadAttentionLoss(
-                sigma=guided_attn_loss_sigma,
-                alpha=guided_attn_loss_lambda,
-            )
-
         # initialize parameters
         self._reset_parameters(
             init_type=init_type,
@@ -397,7 +381,7 @@ class Transformer(AbsTTS):
             sids: Optional[torch.Tensor] = None,
             lids: Optional[torch.Tensor] = None,
             joint_training: bool = False,
-    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
+    ) -> Tuple:
         """Calculate forward propagation.
 
         Args:
@@ -458,88 +442,8 @@ class Transformer(AbsTTS):
             labels = torch.scatter(
                 labels, 1, (olens - 1).unsqueeze(1), 1.0
             )  # see #3388
-        return after_outs, before_outs, logits, ys, labels, olens
-        # calculate loss values
-        l1_loss, l2_loss, bce_loss = self.criterion(
-            after_outs, before_outs, logits, ys, labels, olens
-        )
-        if self.loss_type == "L1":
-            loss = l1_loss + bce_loss
-        elif self.loss_type == "L2":
-            loss = l2_loss + bce_loss
-        elif self.loss_type == "L1+L2":
-            loss = l1_loss + l2_loss + bce_loss
-        else:
-            raise ValueError("unknown --loss-type " + self.loss_type)
+        return after_outs, before_outs, logits, ys, labels, olens, olens_in, ilens
 
-        stats = dict(
-            l1_loss=l1_loss.item(),
-            l2_loss=l2_loss.item(),
-            bce_loss=bce_loss.item(),
-        )
-
-        # calculate guided attention loss
-        if self.use_guided_attn_loss:
-            # calculate for encoder
-            if "encoder" in self.modules_applied_guided_attn:
-                att_ws = []
-                for idx, layer_idx in enumerate(
-                        reversed(range(len(self.encoder.encoders)))
-                ):
-                    att_ws += [
-                        self.encoder.encoders[layer_idx].self_attn.attn[
-                        :, : self.num_heads_applied_guided_attn
-                        ]
-                    ]
-                    if idx + 1 == self.num_layers_applied_guided_attn:
-                        break
-                att_ws = torch.cat(att_ws, dim=1)  # (B, H*L, T_text, T_text)
-                enc_attn_loss = self.attn_criterion(att_ws, ilens, ilens)
-                loss = loss + enc_attn_loss
-                stats.update(enc_attn_loss=enc_attn_loss.item())
-            # calculate for decoder
-            if "decoder" in self.modules_applied_guided_attn:
-                att_ws = []
-                for idx, layer_idx in enumerate(
-                        reversed(range(len(self.decoder.decoders)))
-                ):
-                    att_ws += [
-                        self.decoder.decoders[layer_idx].self_attn.attn[
-                        :, : self.num_heads_applied_guided_attn
-                        ]
-                    ]
-                    if idx + 1 == self.num_layers_applied_guided_attn:
-                        break
-                att_ws = torch.cat(att_ws, dim=1)  # (B, H*L, T_feats, T_feats)
-                dec_attn_loss = self.attn_criterion(att_ws, olens_in, olens_in)
-                loss = loss + dec_attn_loss
-                stats.update(dec_attn_loss=dec_attn_loss.item())
-            # calculate for encoder-decoder
-            if "encoder-decoder" in self.modules_applied_guided_attn:
-                att_ws = []
-                for idx, layer_idx in enumerate(
-                        reversed(range(len(self.decoder.decoders)))
-                ):
-                    att_ws += [
-                        self.decoder.decoders[layer_idx].src_attn.attn[
-                        :, : self.num_heads_applied_guided_attn
-                        ]
-                    ]
-                    if idx + 1 == self.num_layers_applied_guided_attn:
-                        break
-                att_ws = torch.cat(att_ws, dim=1)  # (B, H*L, T_feats, T_text)
-                enc_dec_attn_loss = self.attn_criterion(att_ws, ilens, olens_in)
-                loss = loss + enc_dec_attn_loss
-                stats.update(enc_dec_attn_loss=enc_dec_attn_loss.item())
-
-        # report extra information
-        if self.use_scaled_pos_enc:
-            stats.update(
-                encoder_alpha=self.encoder.embed[-1].alpha.data.item(),
-                decoder_alpha=self.decoder.embed[-1].alpha.data.item(),
-            )
-
-        return loss, stats, after_outs
 
     def _forward(
             self,

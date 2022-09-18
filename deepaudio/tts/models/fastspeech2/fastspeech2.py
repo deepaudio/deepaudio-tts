@@ -6,12 +6,14 @@
 import logging
 from typing import Dict, Optional, Sequence, Tuple
 
+import numpy as np
+
 import torch
+from torch import nn
 import torch.nn.functional as F
 from typeguard import check_argument_types
 
 from deepaudio.tts.modules.nets_utils import initialize
-from deepaudio.tts.models import AbsTTS
 from deepaudio.tts.models.fastspeech2.loss import FastSpeech2Loss
 from deepaudio.tts.modules.predictor.variance_predictor import VariancePredictor
 from deepaudio.tts.modules.style_encoder import StyleEncoder
@@ -29,7 +31,7 @@ from deepaudio.tts.modules.transformer.encoder import (
 )
 
 
-class FastSpeech2(AbsTTS):
+class FastSpeech2(torch.nn.Module):
     """FastSpeech2 module.
 
     This is a module of FastSpeech2 described in `FastSpeech 2: Fast and
