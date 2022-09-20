@@ -1,0 +1,71 @@
+_target_: deepaudio.tts.models.transformer_tts.model.TransformerTTSModel
+
+optimizer_d:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: 0.001
+  weight_decay: 0.00001
+
+scheduler_d:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  _partial_: true
+  mode: min
+  factor: 0.1
+  patience: 10
+
+optimizer_g:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: 0.001
+  weight_decay: 0.00001
+
+scheduler_g:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  _partial_: true
+  mode: min
+  factor: 0.1
+  patience: 10
+
+lambda_aux: 1.0,
+lambda_adv: 4.0,
+
+generator:
+  _target_: deepaudio.tts.models.parallel_wavegan.parallel_wavegan.ParallelWaveGANGenerator
+  in_channels: 1        # Number of input channels.
+  out_channels: 1       # Number of output channels.
+  kernel_size: 3        # Kernel size of dilated convolution.
+  layers: 30            # Number of residual block layers.
+  stacks: 3             # Number of stacks i.e., dilation cycles.
+  residual_channels: 64 # Number of channels in residual conv.
+  gate_channels: 128    # Number of channels in gated conv.
+  skip_channels: 64     # Number of channels in skip conv.
+  aux_channels: 80      # Number of channels for auxiliary feature conv.
+                        # Must be the same as num_mels.
+  aux_context_window: 2 # Context window size for auxiliary feature.
+                        # If set to 2, previous 2 and future 2 frames will be considered.
+  dropout: 0.0          # Dropout rate. 0.0 means no dropout applied.
+  use_weight_norm: True # Whether to use weight norm.
+                        # If set to true, it will be applied to all of the conv layers.
+  upsample_scales: [4, 4, 4, 4]     # Upsampling scales. prod(upsample_scales) == n_shift
+
+discriminator:
+  _target_: deepaudio.tts.models.parallel_wavegan.parallel_wavegan.ParallelWaveGANDiscriminator
+  in_channels: 1        # Number of input channels.
+  out_channels: 1       # Number of output channels.
+  kernel_size: 3        # Number of output channels.
+  layers: 10            # Number of conv layers.
+  conv_channels: 64     # Number of chnn layers.
+  bias: True            # Whether to use bias parameter in conv.
+  use_weight_norm: True # Whether to use weight norm.
+                        # If set to true, it will be applied to all of the conv layers.
+  nonlinear_activation: "leakyrelu" # Nonlinear function after each conv.
+  nonlinear_activation_params:      # Nonlinear function parameters
+      negative_slope: 0.2           # Alpha in leakyrelu.
+
+criterion_stft:
+  _target_: deepaudio.tts.modules.losses.MultiResolutionSTFTLoss
+  fft_sizes: [1024, 2048, 512]  # List of FFT size for STFT-based loss.
+  hop_sizes: [120, 240, 50]     # List of hop size for STFT-based loss
+  win_lengths: [600, 1200, 240] # List of window length for STFT-based loss.
+  window: "hann"                # Window function for STFT-based loss
+

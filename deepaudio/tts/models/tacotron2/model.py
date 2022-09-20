@@ -75,6 +75,7 @@ class Tacotron2Model(LightningModule):
 
     def training_step(self, batch: dict, batch_idx: int):
         losses_dict = self.compute_loss(batch)
+        self.log_dict(losses_dict)
         return losses_dict
 
     def validation_step(self, batch: dict, batch_idx: int):
@@ -82,7 +83,7 @@ class Tacotron2Model(LightningModule):
         loss = losses_dict.pop('loss')
         losses_dict['val_loss'] = loss
         self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        return losses_dict
+        return loss
 
     def configure_optimizers(self):
         optimizer = self.hparams.optimizer(params=self.parameters())

@@ -20,6 +20,8 @@ class MelganModel(LightningModule):
                  criterion_gen_adv: GeneratorAdversarialLoss,
                  criterion_dis_adv: DiscriminatorAdversarialLoss,
                  criterion_pqmf: PQMF,
+                 lambda_aux: float,
+                 lambda_adv: float,
                  optimizer_d: torch.optim.Optimizer,
                  scheduler_d: torch.optim.lr_scheduler,
                  optimizer_g: torch.optim.Optimizer,
@@ -34,6 +36,13 @@ class MelganModel(LightningModule):
         self.criterion_gen_adv = criterion_gen_adv
         self.criterion_dis_adv = criterion_dis_adv
         self.criterion_pqmf = criterion_pqmf
+        self.save_hyperparameters(logger=False, ignore=["generator",
+                                                        "discriminator",
+                                                        "criterion_stft",
+                                                        "criterion_sub_stft",
+                                                        "criterion_gen_adv",
+                                                        "criterion_dis_adv",
+                                                        "criterion_pqmf",])
 
     def training_step(self, batch: tuple, batch_idx: int, optimizer_idx: int):
         losses_dict = {}
@@ -69,14 +78,15 @@ class MelganModel(LightningModule):
             losses_dict["sub_spectral_convergence_loss"] = sub_sc_loss
             losses_dict["sub_log_stft_magnitude_loss"] = sub_mag_loss
 
-            gen_loss += aux_loss * self.lambda_aux
+            gen_loss += aux_loss * self.hparams.lambda_aux
 
             # adversarial loss TODO
             p_ = self.discriminator(wav_)
             adv_loss = self.criterion_gen_adv(p_)
             losses_dict["adversarial_loss"] = float(adv_loss)
-
-            gen_loss += self.lambda_adv * adv_loss
+            gen_loss += self.hparams.lambda_adv * adv_loss
+            self.log_dict(losses_dict)
+            return gen_loss
 
 
         # Disctiminator
@@ -92,6 +102,8 @@ class MelganModel(LightningModule):
             losses_dict["real_loss"] = real_loss
             losses_dict["fake_loss"] = fake_loss
             losses_dict["discriminator_loss"] = dis_loss
+            self.log_dict(losses_dict)
+            return dis_loss
 
     def configure_optimizers(self):
         optimizer_g = self.hparams.optimizer_g(params=self.generator.parameters())
