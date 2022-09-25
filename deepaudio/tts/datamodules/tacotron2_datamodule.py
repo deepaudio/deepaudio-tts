@@ -9,7 +9,7 @@ from deepaudio.tts.datasets.am_batch_fn import tacotron2_multi_spk_batch_fn
 from deepaudio.tts.datasets.am_batch_fn import tacotron2_single_spk_batch_fn
 from deepaudio.tts.datasets.data_table import DataTable
 
-class GanDataModule(LightningDataModule):
+class Tacaotron2DataModule(LightningDataModule):
     def __init__(self,
                  train_metadata: str,
                  dev_metadata: str,
