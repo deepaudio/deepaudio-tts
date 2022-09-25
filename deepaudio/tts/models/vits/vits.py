@@ -17,15 +17,8 @@ from deepaudio.tts.models.hifigan.hifigan import (
     HiFiGANPeriodDiscriminator,
     HiFiGANScaleDiscriminator,
 )
-from deepaudio.tts.models.hifigan.loss import (
-    DiscriminatorAdversarialLoss,
-    FeatureMatchLoss,
-    GeneratorAdversarialLoss,
-    MelSpectrogramLoss,
-)
-from deepaudio.tts.modules.nets_utils import get_segments
+
 from deepaudio.tts.models.vits.generator import VITSGenerator
-from deepaudio.tts.models.vits.loss import KLDivergenceLoss
 
 AVAILABLE_GENERATERS = {
     "vits_generator": VITSGenerator,
@@ -59,130 +52,130 @@ class VITS(torch.nn.Module):
     """
 
     def __init__(
-        self,
-        # generator related
-        idim: int,
-        odim: int,
-        sampling_rate: int = 22050,
-        generator_type: str = "vits_generator",
-        generator_params: Dict[str, Any] = {
-            "hidden_channels": 192,
-            "spks": None,
-            "langs": None,
-            "spk_embed_dim": None,
-            "global_channels": -1,
-            "segment_size": 32,
-            "text_encoder_attention_heads": 2,
-            "text_encoder_ffn_expand": 4,
-            "text_encoder_blocks": 6,
-            "text_encoder_positionwise_layer_type": "conv1d",
-            "text_encoder_positionwise_conv_kernel_size": 1,
-            "text_encoder_positional_encoding_layer_type": "rel_pos",
-            "text_encoder_self_attention_layer_type": "rel_selfattn",
-            "text_encoder_activation_type": "swish",
-            "text_encoder_normalize_before": True,
-            "text_encoder_dropout_rate": 0.1,
-            "text_encoder_positional_dropout_rate": 0.0,
-            "text_encoder_attention_dropout_rate": 0.0,
-            "text_encoder_conformer_kernel_size": 7,
-            "use_macaron_style_in_text_encoder": True,
-            "use_conformer_conv_in_text_encoder": True,
-            "decoder_kernel_size": 7,
-            "decoder_channels": 512,
-            "decoder_upsample_scales": [8, 8, 2, 2],
-            "decoder_upsample_kernel_sizes": [16, 16, 4, 4],
-            "decoder_resblock_kernel_sizes": [3, 7, 11],
-            "decoder_resblock_dilations": [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
-            "use_weight_norm_in_decoder": True,
-            "posterior_encoder_kernel_size": 5,
-            "posterior_encoder_layers": 16,
-            "posterior_encoder_stacks": 1,
-            "posterior_encoder_base_dilation": 1,
-            "posterior_encoder_dropout_rate": 0.0,
-            "use_weight_norm_in_posterior_encoder": True,
-            "flow_flows": 4,
-            "flow_kernel_size": 5,
-            "flow_base_dilation": 1,
-            "flow_layers": 4,
-            "flow_dropout_rate": 0.0,
-            "use_weight_norm_in_flow": True,
-            "use_only_mean_in_flow": True,
-            "stochastic_duration_predictor_kernel_size": 3,
-            "stochastic_duration_predictor_dropout_rate": 0.5,
-            "stochastic_duration_predictor_flows": 4,
-            "stochastic_duration_predictor_dds_conv_layers": 3,
-        },
-        # discriminator related
-        discriminator_type: str = "hifigan_multi_scale_multi_period_discriminator",
-        discriminator_params: Dict[str, Any] = {
-            "scales": 1,
-            "scale_downsample_pooling": "AvgPool1d",
-            "scale_downsample_pooling_params": {
-                "kernel_size": 4,
-                "stride": 2,
-                "padding": 2,
+            self,
+            # generator related
+            idim: int,
+            odim: int,
+            sampling_rate: int = 22050,
+            generator_type: str = "vits_generator",
+            generator_params: Dict[str, Any] = {
+                "hidden_channels": 192,
+                "spks": None,
+                "langs": None,
+                "spk_embed_dim": None,
+                "global_channels": -1,
+                "segment_size": 32,
+                "text_encoder_attention_heads": 2,
+                "text_encoder_ffn_expand": 4,
+                "text_encoder_blocks": 6,
+                "text_encoder_positionwise_layer_type": "conv1d",
+                "text_encoder_positionwise_conv_kernel_size": 1,
+                "text_encoder_positional_encoding_layer_type": "rel_pos",
+                "text_encoder_self_attention_layer_type": "rel_selfattn",
+                "text_encoder_activation_type": "swish",
+                "text_encoder_normalize_before": True,
+                "text_encoder_dropout_rate": 0.1,
+                "text_encoder_positional_dropout_rate": 0.0,
+                "text_encoder_attention_dropout_rate": 0.0,
+                "text_encoder_conformer_kernel_size": 7,
+                "use_macaron_style_in_text_encoder": True,
+                "use_conformer_conv_in_text_encoder": True,
+                "decoder_kernel_size": 7,
+                "decoder_channels": 512,
+                "decoder_upsample_scales": [8, 8, 2, 2],
+                "decoder_upsample_kernel_sizes": [16, 16, 4, 4],
+                "decoder_resblock_kernel_sizes": [3, 7, 11],
+                "decoder_resblock_dilations": [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
+                "use_weight_norm_in_decoder": True,
+                "posterior_encoder_kernel_size": 5,
+                "posterior_encoder_layers": 16,
+                "posterior_encoder_stacks": 1,
+                "posterior_encoder_base_dilation": 1,
+                "posterior_encoder_dropout_rate": 0.0,
+                "use_weight_norm_in_posterior_encoder": True,
+                "flow_flows": 4,
+                "flow_kernel_size": 5,
+                "flow_base_dilation": 1,
+                "flow_layers": 4,
+                "flow_dropout_rate": 0.0,
+                "use_weight_norm_in_flow": True,
+                "use_only_mean_in_flow": True,
+                "stochastic_duration_predictor_kernel_size": 3,
+                "stochastic_duration_predictor_dropout_rate": 0.5,
+                "stochastic_duration_predictor_flows": 4,
+                "stochastic_duration_predictor_dds_conv_layers": 3,
             },
-            "scale_discriminator_params": {
-                "in_channels": 1,
-                "out_channels": 1,
-                "kernel_sizes": [15, 41, 5, 3],
-                "channels": 128,
-                "max_downsample_channels": 1024,
-                "max_groups": 16,
-                "bias": True,
-                "downsample_scales": [2, 2, 4, 4, 1],
-                "nonlinear_activation": "LeakyReLU",
-                "nonlinear_activation_params": {"negative_slope": 0.1},
-                "use_weight_norm": True,
-                "use_spectral_norm": False,
+            # discriminator related
+            discriminator_type: str = "hifigan_multi_scale_multi_period_discriminator",
+            discriminator_params: Dict[str, Any] = {
+                "scales": 1,
+                "scale_downsample_pooling": "AvgPool1d",
+                "scale_downsample_pooling_params": {
+                    "kernel_size": 4,
+                    "stride": 2,
+                    "padding": 2,
+                },
+                "scale_discriminator_params": {
+                    "in_channels": 1,
+                    "out_channels": 1,
+                    "kernel_sizes": [15, 41, 5, 3],
+                    "channels": 128,
+                    "max_downsample_channels": 1024,
+                    "max_groups": 16,
+                    "bias": True,
+                    "downsample_scales": [2, 2, 4, 4, 1],
+                    "nonlinear_activation": "LeakyReLU",
+                    "nonlinear_activation_params": {"negative_slope": 0.1},
+                    "use_weight_norm": True,
+                    "use_spectral_norm": False,
+                },
+                "follow_official_norm": False,
+                "periods": [2, 3, 5, 7, 11],
+                "period_discriminator_params": {
+                    "in_channels": 1,
+                    "out_channels": 1,
+                    "kernel_sizes": [5, 3],
+                    "channels": 32,
+                    "downsample_scales": [3, 3, 3, 3, 1],
+                    "max_downsample_channels": 1024,
+                    "bias": True,
+                    "nonlinear_activation": "LeakyReLU",
+                    "nonlinear_activation_params": {"negative_slope": 0.1},
+                    "use_weight_norm": True,
+                    "use_spectral_norm": False,
+                },
             },
-            "follow_official_norm": False,
-            "periods": [2, 3, 5, 7, 11],
-            "period_discriminator_params": {
-                "in_channels": 1,
-                "out_channels": 1,
-                "kernel_sizes": [5, 3],
-                "channels": 32,
-                "downsample_scales": [3, 3, 3, 3, 1],
-                "max_downsample_channels": 1024,
-                "bias": True,
-                "nonlinear_activation": "LeakyReLU",
-                "nonlinear_activation_params": {"negative_slope": 0.1},
-                "use_weight_norm": True,
-                "use_spectral_norm": False,
+            # loss related
+            generator_adv_loss_params: Dict[str, Any] = {
+                "average_by_discriminators": False,
+                "loss_type": "mse",
             },
-        },
-        # loss related
-        generator_adv_loss_params: Dict[str, Any] = {
-            "average_by_discriminators": False,
-            "loss_type": "mse",
-        },
-        discriminator_adv_loss_params: Dict[str, Any] = {
-            "average_by_discriminators": False,
-            "loss_type": "mse",
-        },
-        feat_match_loss_params: Dict[str, Any] = {
-            "average_by_discriminators": False,
-            "average_by_layers": False,
-            "include_final_outputs": True,
-        },
-        mel_loss_params: Dict[str, Any] = {
-            "fs": 22050,
-            "n_fft": 1024,
-            "hop_length": 256,
-            "win_length": None,
-            "window": "hann",
-            "n_mels": 80,
-            "fmin": 0,
-            "fmax": None,
-            "log_base": None,
-        },
-        lambda_adv: float = 1.0,
-        lambda_mel: float = 45.0,
-        lambda_feat_match: float = 2.0,
-        lambda_dur: float = 1.0,
-        lambda_kl: float = 1.0,
-        cache_generator_outputs: bool = True,
+            discriminator_adv_loss_params: Dict[str, Any] = {
+                "average_by_discriminators": False,
+                "loss_type": "mse",
+            },
+            feat_match_loss_params: Dict[str, Any] = {
+                "average_by_discriminators": False,
+                "average_by_layers": False,
+                "include_final_outputs": True,
+            },
+            mel_loss_params: Dict[str, Any] = {
+                "fs": 22050,
+                "n_fft": 1024,
+                "hop_length": 256,
+                "win_length": None,
+                "window": "hann",
+                "n_mels": 80,
+                "fmin": 0,
+                "fmax": None,
+                "log_base": None,
+            },
+            lambda_adv: float = 1.0,
+            lambda_mel: float = 45.0,
+            lambda_feat_match: float = 2.0,
+            lambda_dur: float = 1.0,
+            lambda_kl: float = 1.0,
+            cache_generator_outputs: bool = True,
     ):
         """Initialize VITS module.
 
@@ -229,26 +222,6 @@ class VITS(torch.nn.Module):
         self.discriminator = discriminator_class(
             **discriminator_params,
         )
-        self.generator_adv_loss = GeneratorAdversarialLoss(
-            **generator_adv_loss_params,
-        )
-        self.discriminator_adv_loss = DiscriminatorAdversarialLoss(
-            **discriminator_adv_loss_params,
-        )
-        self.feat_match_loss = FeatureMatchLoss(
-            **feat_match_loss_params,
-        )
-        self.mel_loss = MelSpectrogramLoss(
-            **mel_loss_params,
-        )
-        self.kl_loss = KLDivergenceLoss()
-
-        # coefficients
-        self.lambda_adv = lambda_adv
-        self.lambda_mel = lambda_mel
-        self.lambda_kl = lambda_kl
-        self.lambda_feat_match = lambda_feat_match
-        self.lambda_dur = lambda_dur
 
         # cache
         self.cache_generator_outputs = cache_generator_outputs
@@ -274,17 +247,17 @@ class VITS(torch.nn.Module):
         return False
 
     def forward(
-        self,
-        text: torch.Tensor,
-        text_lengths: torch.Tensor,
-        feats: torch.Tensor,
-        feats_lengths: torch.Tensor,
-        speech: torch.Tensor,
-        speech_lengths: torch.Tensor,
-        sids: Optional[torch.Tensor] = None,
-        spembs: Optional[torch.Tensor] = None,
-        lids: Optional[torch.Tensor] = None,
-        forward_generator: bool = True,
+            self,
+            text: torch.Tensor,
+            text_lengths: torch.Tensor,
+            feats: torch.Tensor,
+            feats_lengths: torch.Tensor,
+            speech: torch.Tensor,
+            speech_lengths: torch.Tensor,
+            sids: Optional[torch.Tensor] = None,
+            spembs: Optional[torch.Tensor] = None,
+            lids: Optional[torch.Tensor] = None,
+            forward_generator: bool = True,
     ) -> Dict[str, Any]:
         """Perform generator forward.
 
@@ -334,16 +307,16 @@ class VITS(torch.nn.Module):
             )
 
     def _forward_generator(
-        self,
-        text: torch.Tensor,
-        text_lengths: torch.Tensor,
-        feats: torch.Tensor,
-        feats_lengths: torch.Tensor,
-        speech: torch.Tensor,
-        speech_lengths: torch.Tensor,
-        sids: Optional[torch.Tensor] = None,
-        spembs: Optional[torch.Tensor] = None,
-        lids: Optional[torch.Tensor] = None,
+            self,
+            text: torch.Tensor,
+            text_lengths: torch.Tensor,
+            feats: torch.Tensor,
+            feats_lengths: torch.Tensor,
+            speech: torch.Tensor,
+            speech_lengths: torch.Tensor,
+            sids: Optional[torch.Tensor] = None,
+            spembs: Optional[torch.Tensor] = None,
+            lids: Optional[torch.Tensor] = None,
     ) -> Dict[str, Any]:
         """Perform generator forward.
 
@@ -390,70 +363,19 @@ class VITS(torch.nn.Module):
         # store cache
         if self.training and self.cache_generator_outputs and not reuse_cache:
             self._cache = outs
-
-        # parse outputs
-        speech_hat_, dur_nll, _, start_idxs, _, z_mask, outs_ = outs
-        _, z_p, m_p, logs_p, _, logs_q = outs_
-        speech_ = get_segments(
-            x=speech,
-            start_idxs=start_idxs * self.generator.upsample_factor,
-            segment_size=self.generator.segment_size * self.generator.upsample_factor,
-        )
-
-        # calculate discriminator outputs
-        p_hat = self.discriminator(speech_hat_)
-        with torch.no_grad():
-            # do not store discriminator gradient in generator turn
-            p = self.discriminator(speech_)
-
-        # calculate losses
-        with autocast(enabled=False):
-            mel_loss = self.mel_loss(speech_hat_, speech_)
-            kl_loss = self.kl_loss(z_p, logs_q, m_p, logs_p, z_mask)
-            dur_loss = torch.sum(dur_nll.float())
-            adv_loss = self.generator_adv_loss(p_hat)
-            feat_match_loss = self.feat_match_loss(p_hat, p)
-
-            mel_loss = mel_loss * self.lambda_mel
-            kl_loss = kl_loss * self.lambda_kl
-            dur_loss = dur_loss * self.lambda_dur
-            adv_loss = adv_loss * self.lambda_adv
-            feat_match_loss = feat_match_loss * self.lambda_feat_match
-            loss = mel_loss + kl_loss + dur_loss + adv_loss + feat_match_loss
-
-        stats = dict(
-            generator_loss=loss.item(),
-            generator_mel_loss=mel_loss.item(),
-            generator_kl_loss=kl_loss.item(),
-            generator_dur_loss=dur_loss.item(),
-            generator_adv_loss=adv_loss.item(),
-            generator_feat_match_loss=feat_match_loss.item(),
-        )
-
-        # loss, stats, weight = force_gatherable((loss, stats, batch_size), loss.device)
-
-        # reset cache
-        if reuse_cache or not self.training:
-            self._cache = None
-
-        return {
-            "loss": loss,
-            "stats": stats,
-            # "weight": weight,
-            "optim_idx": 0,  # needed for trainer
-        }
+        return outs
 
     def _forward_discrminator(
-        self,
-        text: torch.Tensor,
-        text_lengths: torch.Tensor,
-        feats: torch.Tensor,
-        feats_lengths: torch.Tensor,
-        speech: torch.Tensor,
-        speech_lengths: torch.Tensor,
-        sids: Optional[torch.Tensor] = None,
-        spembs: Optional[torch.Tensor] = None,
-        lids: Optional[torch.Tensor] = None,
+            self,
+            text: torch.Tensor,
+            text_lengths: torch.Tensor,
+            feats: torch.Tensor,
+            feats_lengths: torch.Tensor,
+            speech: torch.Tensor,
+            speech_lengths: torch.Tensor,
+            sids: Optional[torch.Tensor] = None,
+            spembs: Optional[torch.Tensor] = None,
+            lids: Optional[torch.Tensor] = None,
     ) -> Dict[str, Any]:
         """Perform discriminator forward.
 
@@ -500,55 +422,21 @@ class VITS(torch.nn.Module):
         # store cache
         if self.cache_generator_outputs and not reuse_cache:
             self._cache = outs
-
-        # parse outputs
-        speech_hat_, _, _, start_idxs, *_ = outs
-        speech_ = get_segments(
-            x=speech,
-            start_idxs=start_idxs * self.generator.upsample_factor,
-            segment_size=self.generator.segment_size * self.generator.upsample_factor,
-        )
-
-        # calculate discriminator outputs
-        p_hat = self.discriminator(speech_hat_.detach())
-        p = self.discriminator(speech_)
-
-        # calculate losses
-        with autocast(enabled=False):
-            real_loss, fake_loss = self.discriminator_adv_loss(p_hat, p)
-            loss = real_loss + fake_loss
-
-        stats = dict(
-            discriminator_loss=loss.item(),
-            discriminator_real_loss=real_loss.item(),
-            discriminator_fake_loss=fake_loss.item(),
-        )
-        # loss, stats, weight = force_gatherable((loss, stats, batch_size), loss.device)
-
-        # reset cache
-        if reuse_cache or not self.training:
-            self._cache = None
-
-        return {
-            "loss": loss,
-            "stats": stats,
-            # "weight": weight,
-            "optim_idx": 1,  # needed for trainer
-        }
+        return outs
 
     def inference(
-        self,
-        text: torch.Tensor,
-        feats: Optional[torch.Tensor] = None,
-        sids: Optional[torch.Tensor] = None,
-        spembs: Optional[torch.Tensor] = None,
-        lids: Optional[torch.Tensor] = None,
-        durations: Optional[torch.Tensor] = None,
-        noise_scale: float = 0.667,
-        noise_scale_dur: float = 0.8,
-        alpha: float = 1.0,
-        max_len: Optional[int] = None,
-        use_teacher_forcing: bool = False,
+            self,
+            text: torch.Tensor,
+            feats: Optional[torch.Tensor] = None,
+            sids: Optional[torch.Tensor] = None,
+            spembs: Optional[torch.Tensor] = None,
+            lids: Optional[torch.Tensor] = None,
+            durations: Optional[torch.Tensor] = None,
+            noise_scale: float = 0.667,
+            noise_scale_dur: float = 0.8,
+            alpha: float = 1.0,
+            max_len: Optional[int] = None,
+            use_teacher_forcing: bool = False,
     ) -> Dict[str, torch.Tensor]:
         """Run inference.
 
