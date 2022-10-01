@@ -7,22 +7,18 @@ import logging
 from typing import Dict, Optional, Sequence, Tuple
 
 import torch
+from torch import nn
 import torch.nn.functional as F
 from typeguard import check_argument_types
 
-from deepaudio.tts.models.abs_tts import AbsTTS
 from deepaudio.tts.modules.style_encoder import StyleEncoder
-from deepaudio.tts.models.tacotron2.loss import (
-    GuidedAttentionLoss,
-    Tacotron2Loss,
-)
 from deepaudio.tts.modules.nets_utils import make_pad_mask
 from deepaudio.tts.modules.tacotron2.attentions import AttForward, AttForwardTA, AttLoc
 from deepaudio.tts.modules.tacotron2.decoder import Decoder
 from deepaudio.tts.modules.tacotron2.encoder import Encoder
 
 
-class Tacotron2(AbsTTS):
+class Tacotron2(nn.Module):
     """Tacotron2 module for end-to-end text-to-speech.
 
     This is a module of Spectrogram prediction network in Tacotron2 described
