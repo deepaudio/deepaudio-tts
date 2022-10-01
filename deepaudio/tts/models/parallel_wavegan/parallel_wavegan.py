@@ -253,8 +253,6 @@ class ParallelWaveGANDiscriminator(torch.nn.Module):
         layers: int = 10,
         conv_channels: int = 64,
         dilation_factor: int = 1,
-        nonlinear_activation: str = "LeakyReLU",
-        nonlinear_activation_params: Dict[str, Any] = {"negative_slope": 0.2},
         bias: bool = True,
         use_weight_norm: bool = True,
     ):
@@ -296,8 +294,8 @@ class ParallelWaveGANDiscriminator(torch.nn.Module):
                     dilation=dilation,
                     bias=bias,
                 ),
-                getattr(torch.nn, nonlinear_activation)(
-                    inplace=True, **nonlinear_activation_params
+                torch.nn.LeakyReLU(
+                    inplace=True, negative_slope=0.2
                 ),
             ]
             self.conv_layers += conv_layer

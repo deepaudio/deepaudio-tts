@@ -8,8 +8,8 @@
 
 import torch
 
-from espnet.nets.pytorch_backend.e2e_tts_tacotron2 import Tacotron2
-from espnet.nets.pytorch_backend.e2e_tts_transformer import Transformer
+from deepaudio.tts.models.tacotron2.tacotron2 import Tacotron2
+from deepaudio.tts.models.transformer_tts import Transformer
 from deepaudio.tts.modules.nets_utils import pad_list
 
 

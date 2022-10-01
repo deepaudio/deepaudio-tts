@@ -8,7 +8,7 @@
 
 import torch
 
-from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
+from deepaudio.tts.modules.transformer.layer_norm import LayerNorm
 
 
 class DurationPredictor(torch.nn.Module):

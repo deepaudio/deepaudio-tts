@@ -13,6 +13,10 @@ scheduler:
   factor: 0.1
   patience: 10
 
+loss_type: L1+L2
+modules_applied_guided_attn: encoder-decoder
+use_guided_attn_loss: True
+
 transformer_loss:
   _target_: deepaudio.tts.models.transformer_tts.loss.TransformerLoss
   use_masking: True
@@ -28,6 +32,8 @@ atten_criterion:
 
 model:
   _target_: deepaudio.tts.models.transformer_tts.transformer.Transformer
+  idim: 80
+  odim: 80
   embed_dim: 0           # embedding dimension in encoder prenet
   eprenet_conv_layers: 0 # number of conv layers in encoder prenet
   # if set to 0, no encoder prenet will be used

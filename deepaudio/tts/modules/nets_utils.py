@@ -13,6 +13,7 @@
 # limitations under the License.
 # Modified from espnet(https://github.com/espnet/espnet)
 from typing import Tuple
+import math
 
 import torch
 from torch import nn
@@ -42,16 +43,13 @@ def to_device(m, x):
 
 def pad_list(xs, pad_value):
     """Perform padding for the list of tensors.
-
     Args:
-        xs (List[Tensor]): List of Tensors [(T_1, `*`), (T_2, `*`), ..., (T_B, `*`)].
+        xs (List): List of Tensors [(T_1, `*`), (T_2, `*`), ..., (T_B, `*`)].
         pad_value (float): Value for padding.
-
     Returns:
         Tensor: Padded tensor (B, Tmax, `*`).
-
     Examples:
-        >>> x = [torch.ones([4]), torch.ones([2]), torch.ones([1])]
+        >>> x = [torch.ones(4), torch.ones(2), torch.ones(1)]
         >>> x
         [tensor([1., 1., 1., 1.]), tensor([1., 1.]), tensor([1.])]
         >>> pad_list(x, 0)
@@ -60,11 +58,11 @@ def pad_list(xs, pad_value):
                 [1., 0., 0., 0.]])
     """
     n_batch = len(xs)
-    max_len = max(x.shape[0] for x in xs)
-    pad = torch.full([n_batch, max_len, *xs[0].shape[1:]], pad_value)
+    max_len = max(x.size(0) for x in xs)
+    pad = xs[0].new(n_batch, max_len, *xs[0].size()[1:]).fill_(pad_value)
 
     for i in range(n_batch):
-        pad[i, :xs[i].shape[0]] = xs[i]
+        pad[i, : xs[i].size(0)] = xs[i]
 
     return pad
 
@@ -292,30 +290,76 @@ def initialize(model: nn.Module, init: str):
     """
     assert check_argument_types()
 
-    if init == "xavier_uniform":
-        initializer = nn.init.xavier_normal_
-        # nn.initializer.set_global_initializer(nn.initializer.XavierUniform(),
-        #                                       nn.initializer.Constant())
-    elif init == "xavier_normal":
-        initializer = nn.init.xavier_normal_
-        # nn.initializer.set_global_initializer(nn.initializer.XavierNormal(),
-        #                                       nn.initializer.Constant())
+    if init == "chainer":
+        # 1. lecun_normal_init_parameters
+        for name, p in model.named_parameters():
+            data = p.data
+            if ".bias" in name and data.dim() == 1:
+                # bias
+                data.zero_()
+            elif data.dim() == 1:
+                # linear weight
+                n = data.size(0)
+                stdv = 1.0 / math.sqrt(n)
+                data.normal_(0, stdv)
+            elif data.dim() == 2:
+                # linear weight
+                n = data.size(1)
+                stdv = 1.0 / math.sqrt(n)
+                data.normal_(0, stdv)
+            elif data.dim() in (3, 4):
+                # conv weight
+                n = data.size(1)
+                for k in data.size()[2:]:
+                    n *= k
+                stdv = 1.0 / math.sqrt(n)
+                data.normal_(0, stdv)
+            else:
+                raise NotImplementedError
 
-    elif init == "kaiming_uniform":
-        initializer = nn.init.kaiming_uniform_
-        # nn.initializer.set_global_initializer(nn.initializer.KaimingUniform(),
-        #                                       nn.initializer.Constant())
-    elif init == "kaiming_normal":
-        initializer = nn.init.kaiming_normal_
-        # nn.initializer.set_global_initializer(nn.initializer.KaimingNormal(),
-        #                                       nn.initializer.Constant())
+        for mod in model.modules():
+            # 2. embed weight ~ Normal(0, 1)
+            if isinstance(mod, torch.nn.Embedding):
+                mod.weight.data.normal_(0, 1)
+            # 3. forget-bias = 1.0
+            elif isinstance(mod, torch.nn.RNNCellBase):
+                n = mod.bias_ih.size(0)
+                mod.bias_ih.data[n // 4: n // 2].fill_(1.0)
+            elif isinstance(mod, torch.nn.RNNBase):
+                for name, param in mod.named_parameters():
+                    if "bias" in name:
+                        n = param.size(0)
+                        param.data[n // 4: n // 2].fill_(1.0)
+            if hasattr(mod, "espnet_initialization_fn"):
+                mod.espnet_initialization_fn()
+
     else:
-        raise ValueError("Unknown initialization: " + init)
+        # weight init
+        for p in model.parameters():
+            if p.dim() > 1:
+                if init == "xavier_uniform":
+                    torch.nn.init.xavier_uniform_(p.data)
+                elif init == "xavier_normal":
+                    torch.nn.init.xavier_normal_(p.data)
+                elif init == "kaiming_uniform":
+                    torch.nn.init.kaiming_uniform_(p.data, nonlinearity="relu")
+                elif init == "kaiming_normal":
+                    torch.nn.init.kaiming_normal_(p.data, nonlinearity="relu")
+                else:
+                    raise ValueError("Unknown initialization: " + init)
+        # bias init
+        for name, p in model.named_parameters():
+            if ".bias" in name and p.dim() == 1:
+                p.data.zero_()
 
-    def init_weights(m):
-        initializer(m.weight)
+        # reset some modules with default init
+        for m in model.modules():
+            if isinstance(
+                    m, (torch.nn.Embedding, torch.nn.LayerNorm, torch.nn.GroupNorm)
+            ):
+                m.reset_parameters()
 
-    model.apply(init_weights)
+
 
 
 # for VITS
@@ -361,3 +405,18 @@ def get_segments(
 
 def torch_gather(x, dim, index):
     torch.gather(x, dim, index)
+
+def get_activation(act):
+    """Return activation function."""
+    # Lazy load to avoid unused import
+    from deepaudio.tts.modules.conformer.swish import Swish
+
+    activation_funcs = {
+        "hardtanh": torch.nn.Hardtanh,
+        "tanh": torch.nn.Tanh,
+        "relu": torch.nn.ReLU,
+        "selu": torch.nn.SELU,
+        "swish": Swish,
+    }
+
+    return activation_funcs[act]()

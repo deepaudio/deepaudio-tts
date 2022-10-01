@@ -15,8 +15,8 @@ scheduler:
 
 model:
   _target_: deepaudio.tts.models.fastspeech2.fastspeech2.FastSpeech2
-  idim: ???         # Dimension of the inputs
-  odim: ???         # Dimension of the outputs.
+  idim: 80          # Dimension of the inputs
+  odim: 80          # Dimension of the outputs.
   adim: 384         # attention dimension
   aheads: 2         # number of attention heads
   elayers: 4        # number of encoder layers

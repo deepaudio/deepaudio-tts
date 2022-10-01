@@ -21,6 +21,7 @@ class Fastspeech2Model(LightningModule):
         # spk_id!=None in multiple spk fastspeech2
         spk_id = batch["spk_id"] if "spk_id" in batch else None
         spk_emb = batch["spk_emb"] if "spk_emb" in batch else None
+        lang_id = batch["lang_id"] if "lang_id" in batch else None
         # No explicit speaker identifier labels are used during voice cloning training.
         if spk_emb is not None:
             spk_id = None
@@ -28,13 +29,15 @@ class Fastspeech2Model(LightningModule):
         outs = self.model(
             text=batch["text"],
             text_lengths=batch["text_lengths"],
-            speech=batch["speech"],
-            speech_lengths=batch["speech_lengths"],
+            feats=batch["speech"],
+            feats_lengths=batch["speech_lengths"],
             durations=batch["durations"],
             pitch=batch["pitch"],
             energy=batch["energy"],
-            spk_id=spk_id,
-            spk_emb=spk_emb)
+            sids=spk_id,
+            spembs=spk_emb,
+            lids=lang_id,
+        )
         return outs
 
     def training_step(self, batch: dict, batch_idx: int):

@@ -8,30 +8,30 @@ import logging
 
 import torch
 
-from espnet.nets.pytorch_backend.conformer.convolution import ConvolutionModule
-from espnet.nets.pytorch_backend.conformer.encoder_layer import EncoderLayer
-from espnet.nets.pytorch_backend.nets_utils import get_activation
-from espnet.nets.pytorch_backend.transformer.attention import (
+from deepaudio.tts.modules.conformer.convolution import ConvolutionModule
+from deepaudio.tts.modules.conformer.encoder_layer import EncoderLayer
+from deepaudio.tts.modules.nets_utils import get_activation
+from deepaudio.tts.modules.transformer.attention import (
     LegacyRelPositionMultiHeadedAttention,
     MultiHeadedAttention,
     RelPositionMultiHeadedAttention,
 )
-from espnet.nets.pytorch_backend.transformer.embedding import (
+from deepaudio.tts.modules.transformer.embedding import (
     LegacyRelPositionalEncoding,
     PositionalEncoding,
     RelPositionalEncoding,
     ScaledPositionalEncoding,
 )
-from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
-from espnet.nets.pytorch_backend.transformer.multi_layer_conv import (
+from deepaudio.tts.modules.transformer.layer_norm import LayerNorm
+from deepaudio.tts.modules.transformer.multi_layer_conv import (
     Conv1dLinear,
     MultiLayeredConv1d,
 )
-from espnet.nets.pytorch_backend.transformer.positionwise_feed_forward import (
+from deepaudio.tts.modules.transformer.positionwise_feed_forward import (
     PositionwiseFeedForward,
 )
-from espnet.nets.pytorch_backend.transformer.repeat import repeat
-from espnet.nets.pytorch_backend.transformer.subsampling import Conv2dSubsampling
+from deepaudio.tts.modules.transformer.repeat import repeat
+from deepaudio.tts.modules.transformer.subsampling import Conv2dSubsampling
 
 
 class Encoder(torch.nn.Module):

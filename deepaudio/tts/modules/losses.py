@@ -435,7 +435,7 @@ def stft(x,
     """
     # calculate window
     window = signal.get_window(window, win_length, fftbins=True)
-    window = torch.from_numpy(window)
+    window = torch.from_numpy(window).to(device=x.device, dtype=x.dtype)
     x_stft = torch.stft(
         x,
         fft_size,
@@ -448,7 +448,7 @@ def stft(x,
     real = x_stft[:, :, 0]
     imag = x_stft[:, :, 1]
 
-    return torch.sqrt(torch.clip(real ** 2 + imag ** 2, min=1e-7)).transpose(
+    return torch.sqrt(torch.clip(real ** 2 + imag ** 2, min=1e-7)).permute(
         [0, 2, 1])
 
 
@@ -547,7 +547,7 @@ class MultiResolutionSTFTLoss(nn.Module):
         """
         super().__init__()
         assert len(fft_sizes) == len(hop_sizes) == len(win_lengths)
-        self.stft_losses = nn.LayerList()
+        self.stft_losses = nn.ModuleList()
         for fs, ss, wl in zip(fft_sizes, hop_sizes, win_lengths):
             self.stft_losses.append(STFTLoss(fs, ss, wl, window))
 

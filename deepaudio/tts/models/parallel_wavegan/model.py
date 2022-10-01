@@ -10,7 +10,7 @@ from deepaudio.tts.models.parallel_wavegan import ParallelWaveGANGenerator
 from deepaudio.tts.modules.losses import MultiResolutionSTFTLoss
 
 
-class MelganModel(LightningModule):
+class ParallelWaveGANModel(LightningModule):
     def __init__(self,
                  generator: ParallelWaveGANGenerator,
                  discriminator: ParallelWaveGANDiscriminator,
@@ -22,7 +22,7 @@ class MelganModel(LightningModule):
                  optimizer_g: torch.optim.Optimizer,
                  scheduler_g: torch.optim.lr_scheduler,
                  ):
-        super(MelganModel, self).__init__()
+        super(ParallelWaveGANModel, self).__init__()
 
         self.generator = generator
         self.discriminator = discriminator
@@ -39,8 +39,8 @@ class MelganModel(LightningModule):
 
         # Generator
         if optimizer_idx == 0:
-            noise = torch.randn(wav.shape)
-            wav_ = self.generator(noise, mel)
+            noise = torch.randn(wav.shape).to(device=wav.device, dtype=wav.dtype)
+            wav_ = self.generator(mel, noise)
 
             # initialize
             gen_loss = 0.0
@@ -69,7 +69,7 @@ class MelganModel(LightningModule):
         if optimizer_idx == 1:
             with torch.no_grad():
                 noise = torch.randn(wav.shape)
-                wav_ = self.generator(noise, mel)
+                wav_ = self.generator(mel, noise)
             p = self.discriminator(wav)
             p_ = self.discriminator(wav_.detach())
             real_loss = self.criterion_mse(p, torch.ones_like(p))

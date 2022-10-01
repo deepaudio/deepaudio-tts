@@ -10,18 +10,21 @@ from deepaudio.tts.models.tacotron2.loss import GuidedAttentionLoss
 class Tacotron2Model(LightningModule):
     def __init__(self,
                  model: Tacotron2,
+                 loss_type: str,
                  taco2_loss: Tacotron2Loss,
                  use_guided_attn_loss: bool,
                  attn_loss: GuidedAttentionLoss,
                  optimizer: torch.optim.Optimizer,
                  scheduler: torch.optim.lr_scheduler
-    ):
+                 ):
         super(Tacotron2Model, self).__init__()
 
         self.model = model
         self.taco2_loss = taco2_loss
-        self.use_guided_attn_loss = use_guided_attn_loss
-        if self.use_guided_attn_loss:
+        self.save_hyperparameters(logger=False, ignore=["model",
+                                                        "taco2_loss",
+                                                        "attn_loss"])
+        if self.hparams.use_guided_attn_loss:
             self.attn_loss = attn_loss
 
     def compute_loss(self, batch):
@@ -35,8 +38,8 @@ class Tacotron2Model(LightningModule):
         after_outs, before_outs, logits, ys, labels, olens, att_ws, olens_in = self.model(
             text=batch["text"],
             text_lengths=batch["text_lengths"],
-            speech=batch["speech"],
-            speech_lengths=batch["speech_lengths"],
+            feats=batch["speech"],
+            feats_lengths=batch["speech_lengths"],
             spk_id=spk_id,
             spk_emb=spk_emb)
 
@@ -46,20 +49,20 @@ class Tacotron2Model(LightningModule):
             before_outs=before_outs,
             logits=logits,
             ys=ys,
-            stop_labels=labels,
+            labels=labels,
             olens=olens)
 
-        if self.loss_type == "L1+L2":
+        if self.hparams.loss_type == "L1+L2":
             loss = l1_loss + mse_loss + bce_loss
-        elif self.loss_type == "L1":
+        elif self.hparams.loss_type == "L1":
             loss = l1_loss + bce_loss
-        elif self.loss_type == "L2":
+        elif self.hparams.loss_type == "L2":
             loss = mse_loss + bce_loss
         else:
             raise ValueError(f"unknown --loss-type {self.loss_type}")
 
         # calculate attention loss
-        if self.use_guided_attn_loss:
+        if self.hparams.use_guided_attn_loss:
             # NOTE: length of output for auto-regressive
             # input will be changed when r > 1
             attn_loss = self.attn_loss(
@@ -98,4 +101,3 @@ class Tacotron2Model(LightningModule):
                 "frequency": 1,
             },
         }
-

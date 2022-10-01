@@ -1,6 +1,6 @@
-from src.utils.pylogger import get_pylogger
-from src.utils.rich_utils import enforce_tags, print_config_tree
-from src.utils.utils import (
+from deepaudio.tts.cli.utils.pylogger import get_pylogger
+from deepaudio.tts.cli.utils.rich_utils import enforce_tags, print_config_tree
+from deepaudio.tts.cli.utils.utils import (
     close_loggers,
     extras,
     get_metric_value,

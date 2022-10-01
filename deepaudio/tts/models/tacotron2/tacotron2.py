@@ -79,13 +79,6 @@ class Tacotron2(AbsTTS):
         # training related
         dropout_rate: float = 0.5,
         zoneout_rate: float = 0.1,
-        use_masking: bool = True,
-        use_weighted_masking: bool = False,
-        bce_pos_weight: float = 5.0,
-        loss_type: str = "L1+L2",
-        use_guided_attn_loss: bool = True,
-        guided_attn_loss_sigma: float = 0.4,
-        guided_attn_loss_lambda: float = 1.0,
     ):
         """Initialize Tacotron2 module.
 
@@ -153,8 +146,6 @@ class Tacotron2(AbsTTS):
         self.cumulate_att_w = cumulate_att_w
         self.reduction_factor = reduction_factor
         self.use_gst = use_gst
-        self.use_guided_attn_loss = use_guided_attn_loss
-        self.loss_type = loss_type
 
         # define activation function for the final output
         if output_activation is None:
@@ -261,16 +252,6 @@ class Tacotron2(AbsTTS):
             zoneout_rate=zoneout_rate,
             reduction_factor=reduction_factor,
         )
-        self.taco2_loss = Tacotron2Loss(
-            use_masking=use_masking,
-            use_weighted_masking=use_weighted_masking,
-            bce_pos_weight=bce_pos_weight,
-        )
-        if self.use_guided_attn_loss:
-            self.attn_loss = GuidedAttentionLoss(
-                sigma=guided_attn_loss_sigma,
-                alpha=guided_attn_loss_lambda,
-            )
 
     def forward(
         self,
@@ -352,38 +333,6 @@ class Tacotron2(AbsTTS):
                 olens_in = olens
 
         return after_outs, before_outs, logits, ys, labels, olens, att_ws, olens_in
-        # # calculate taco2 loss
-        # l1_loss, mse_loss, bce_loss = self.taco2_loss(
-        #     after_outs, before_outs, logits, ys, labels, olens
-        # )
-        # if self.loss_type == "L1+L2":
-        #     loss = l1_loss + mse_loss + bce_loss
-        # elif self.loss_type == "L1":
-        #     loss = l1_loss + bce_loss
-        # elif self.loss_type == "L2":
-        #     loss = mse_loss + bce_loss
-        # else:
-        #     raise ValueError(f"unknown --loss-type {self.loss_type}")
-        #
-        # stats = dict(
-        #     l1_loss=l1_loss.item(),
-        #     mse_loss=mse_loss.item(),
-        #     bce_loss=bce_loss.item(),
-        # )
-        #
-        # # calculate attention loss
-        # if self.use_guided_attn_loss:
-        #     # NOTE(kan-bayashi): length of output for auto-regressive
-        #     # input will be changed when r > 1
-        #     if self.reduction_factor > 1:
-        #         olens_in = olens.new([olen // self.reduction_factor for olen in olens])
-        #     else:
-        #         olens_in = olens
-        #     attn_loss = self.attn_loss(att_ws, ilens, olens_in)
-        #     loss = loss + attn_loss
-        #     stats.update(attn_loss=attn_loss.item())
-        #
-        # return loss, stats, after_outs
 
     def _forward(
         self,

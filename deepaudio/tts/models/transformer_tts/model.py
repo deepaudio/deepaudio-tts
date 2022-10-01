@@ -10,7 +10,9 @@ from deepaudio.tts.models.transformer_tts.loss import TransformerLoss, GuidedMul
 class TransformerTTSModel(LightningModule):
     def __init__(self,
                  model: Transformer,
+                 loss_type: str,
                  modules_applied_guided_attn: str,
+                 num_heads_applied_guided_attn: int,
                  transformer_loss: TransformerLoss,
                  use_guided_attn_loss: bool,
                  atten_criterion: GuidedMultiHeadAttentionLoss,
@@ -20,11 +22,11 @@ class TransformerTTSModel(LightningModule):
                  ):
         super(TransformerTTSModel, self).__init__()
         self.model = model
-
         self.transformer_loss = transformer_loss
-        self.modules_applied_guided_attn = modules_applied_guided_attn
-        self.use_guided_attn_loss = use_guided_attn_loss
-        if self.use_guided_attn_loss:
+        self.save_hyperparameters(logger=False, ignore=["model",
+                                                        "transformer_loss",
+                                                        "atten_criterion"])
+        if self.hparams.use_guided_attn_loss:
             self.attn_criterion = atten_criterion
 
     def training_step(self, batch: dict, batch_idx: int):
@@ -41,25 +43,25 @@ class TransformerTTSModel(LightningModule):
         l1_loss, l2_loss, bce_loss = self.transformer_loss(
             after_outs, before_outs, logits, ys, labels, olens
         )
-        if self.loss_type == "L1":
+        if self.hparams.loss_type == "L1":
             loss = l1_loss + bce_loss
-        elif self.loss_type == "L2":
+        elif self.hparams.loss_type == "L2":
             loss = l2_loss + bce_loss
-        elif self.loss_type == "L1+L2":
+        elif self.hparams.loss_type == "L1+L2":
             loss = l1_loss + l2_loss + bce_loss
         else:
             raise ValueError("unknown --loss-type " + self.loss_type)
 
-        if self.use_guided_attn_loss:
+        if self.hparams.use_guided_attn_loss:
             # calculate for encoder
-            if "encoder" in self.modules_applied_guided_attn:
+            if "encoder" in self.hparams.modules_applied_guided_attn:
                 att_ws = []
                 for idx, layer_idx in enumerate(
                         reversed(range(len(self.encoder.encoders)))
                 ):
                     att_ws += [
-                        self.encoder.encoders[layer_idx].self_attn.attn[
-                        :, : self.num_heads_applied_guided_attn
+                        self.model.encoder.encoders[layer_idx].self_attn.attn[
+                        :, : self.hparams.num_heads_applied_guided_attn
                         ]
                     ]
                     if idx + 1 == self.num_layers_applied_guided_attn:
@@ -68,14 +70,14 @@ class TransformerTTSModel(LightningModule):
                 enc_attn_loss = self.attn_criterion(att_ws, ilens, ilens)
                 loss = loss + enc_attn_loss
             # calculate for decoder
-            if "decoder" in self.modules_applied_guided_attn:
+            if "decoder" in self.hparams.modules_applied_guided_attn:
                 att_ws = []
                 for idx, layer_idx in enumerate(
                         reversed(range(len(self.decoder.decoders)))
                 ):
                     att_ws += [
                         self.decoder.decoders[layer_idx].self_attn.attn[
-                        :, : self.num_heads_applied_guided_attn
+                        :, : self.hparams.num_heads_applied_guided_attn
                         ]
                     ]
                     if idx + 1 == self.num_layers_applied_guided_attn:
@@ -84,17 +86,17 @@ class TransformerTTSModel(LightningModule):
                 dec_attn_loss = self.attn_criterion(att_ws, olens_in, olens_in)
                 loss = loss + dec_attn_loss
             # calculate for encoder-decoder
-            if "encoder-decoder" in self.modules_applied_guided_attn:
+            if "encoder-decoder" in self.hparams.modules_applied_guided_attn:
                 att_ws = []
                 for idx, layer_idx in enumerate(
                         reversed(range(len(self.decoder.decoders)))
                 ):
                     att_ws += [
-                        self.decoder.decoders[layer_idx].src_attn.attn[
-                        :, : self.num_heads_applied_guided_attn
+                        self.model.decoder.decoders[layer_idx].src_attn.attn[
+                        :, : self.hparams.num_heads_applied_guided_attn
                         ]
                     ]
-                    if idx + 1 == self.num_layers_applied_guided_attn:
+                    if idx + 1 == self.hparams.num_layers_applied_guided_attn:
                         break
                 att_ws = torch.cat(att_ws, dim=1)  # (B, H*L, T_feats, T_text)
                 enc_dec_attn_loss = self.attn_criterion(att_ws, ilens, olens_in)

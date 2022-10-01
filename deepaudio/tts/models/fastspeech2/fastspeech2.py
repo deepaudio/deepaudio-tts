@@ -487,16 +487,13 @@ class FastSpeech2(torch.nn.Module):
             feats: torch.Tensor,
             feats_lengths: torch.Tensor,
             durations: torch.Tensor,
-            durations_lengths: torch.Tensor,
             pitch: torch.Tensor,
-            pitch_lengths: torch.Tensor,
             energy: torch.Tensor,
-            energy_lengths: torch.Tensor,
             spembs: Optional[torch.Tensor] = None,
             sids: Optional[torch.Tensor] = None,
             lids: Optional[torch.Tensor] = None,
             joint_training: bool = False,
-    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
+    ):
         """Calculate forward propagation.
 
         Args:
@@ -521,20 +518,22 @@ class FastSpeech2(torch.nn.Module):
             Tensor: Weight value if not joint training else model outputs.
 
         """
-        text = text[:, : text_lengths.max()]  # for data-parallel
-        feats = feats[:, : feats_lengths.max()]  # for data-parallel
-        durations = durations[:, : durations_lengths.max()]  # for data-parallel
-        pitch = pitch[:, : pitch_lengths.max()]  # for data-parallel
-        energy = energy[:, : energy_lengths.max()]  # for data-parallel
+        # text = text[:, : text_lengths.max()]  # for data-parallel
+        # feats = feats[:, : feats_lengths.max()]  # for data-parallel
+        # durations = durations[:, : durations_lengths.max()]  # for data-parallel
+        # pitch = pitch[:, : pitch_lengths.max()]  # for data-parallel
+        # energy = energy[:, : energy_lengths.max()]  # for data-parallel
+        #
+        # batch_size = text.size(0)
+        #
+        # # Add eos at the last of sequence
+        # xs = F.pad(text, [0, 1], "constant", self.padding_idx)
+        # for i, l in enumerate(text_lengths):
+        #     xs[i, l] = self.eos
+        # ilens = text_lengths + 1
 
-        batch_size = text.size(0)
-
-        # Add eos at the last of sequence
-        xs = F.pad(text, [0, 1], "constant", self.padding_idx)
-        for i, l in enumerate(text_lengths):
-            xs[i, l] = self.eos
-        ilens = text_lengths + 1
-
+        xs = text
+        ilens = text_lengths
         ys, ds, ps, es = feats, durations, pitch, energy
         olens = feats_lengths
 
@@ -558,45 +557,7 @@ class FastSpeech2(torch.nn.Module):
             olens = olens.new([olen - olen % self.reduction_factor for olen in olens])
             max_olen = max(olens)
             ys = ys[:, :max_olen]
-
-        # calculate loss
-        if self.postnet is None:
-            after_outs = None
-
-        # calculate loss
-        l1_loss, duration_loss, pitch_loss, energy_loss = self.criterion(
-            after_outs=after_outs,
-            before_outs=before_outs,
-            d_outs=d_outs,
-            p_outs=p_outs,
-            e_outs=e_outs,
-            ys=ys,
-            ds=ds,
-            ps=ps,
-            es=es,
-            ilens=ilens,
-            olens=olens,
-        )
-        loss = l1_loss + duration_loss + pitch_loss + energy_loss
-
-        stats = dict(
-            l1_loss=l1_loss.item(),
-            duration_loss=duration_loss.item(),
-            pitch_loss=pitch_loss.item(),
-            energy_loss=energy_loss.item(),
-        )
-
-        # report extra information
-        if self.encoder_type == "transformer" and self.use_scaled_pos_enc:
-            stats.update(
-                encoder_alpha=self.encoder.embed[-1].alpha.data.item(),
-            )
-        if self.decoder_type == "transformer" and self.use_scaled_pos_enc:
-            stats.update(
-                decoder_alpha=self.decoder.embed[-1].alpha.data.item(),
-            )
-
-        return loss, stats, after_outs if after_outs is not None else before_outs
+        return before_outs, after_outs, d_outs, p_outs, e_outs, ys, olens
 
     def _forward(
             self,

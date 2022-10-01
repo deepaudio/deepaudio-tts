@@ -89,9 +89,9 @@ class Clip(object):
 
         # convert each batch to tensor, assume that each item in batch has the same length
         y_batch = default_collate(
-            y_batch.as_type(np.float32)).unsqueeze(1)  # (B, 1, T)
+            y_batch.astype(np.float32)).unsqueeze(1)  # (B, 1, T)
         c_batch = default_collate(
-            c_batch.as_type(np.float32)).transpose(0, 2, 1)  # (B, C, T')
+            c_batch.astype(np.float32)).permute(0, 2, 1)  # (B, C, T')
 
         return y_batch, c_batch
 

@@ -1,6 +1,6 @@
 _target_: deepaudio.tts.datamodules.fastspeech2_datamodule.Fastspeech2DataModule
-train_metadata: ???,
-dev_metadata: ???,
+train_metadata: ???
+dev_metadata: ???
 batch_size: 128
 num_workers: 0
 pin_memory: False

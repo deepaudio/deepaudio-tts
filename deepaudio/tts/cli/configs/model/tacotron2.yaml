@@ -13,8 +13,25 @@ scheduler:
   factor: 0.1
   patience: 10
 
+loss_type: L1+L2
+use_guided_attn_loss: True
+
+taco2_loss:
+  _target_: deepaudio.tts.models.tacotron2.lossTacotron2Loss
+  use_masking: True
+  use_weighted_masking: False
+  bce_pos_weight: 5.0
+
+attn_loss:
+  _target_: deepaudio.tts.models.tacotron2.GuidedAttentionLoss
+  sigma: 0.4
+  alpha: 1.0
+  reset_always: True
+
 model:
   _target_: deepaudio.tts.models.tacotron2.tacotron2.Tacotron2
+  idim: 80
+  odim: 80
   embed_dim: 512               # char or phn embedding dimension
   elayers: 1                   # number of blstm layers in encoder
   eunits: 512                  # number of blstm units
