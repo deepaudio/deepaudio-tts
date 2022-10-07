@@ -1,0 +1,6 @@
+_target_: deepaudio.tts.datamodules.vits_datamodule.VitsDataModule
+train_metadata: ???
+dev_metadata: ???
+batch_size: 128
+num_workers: 0
+pin_memory: False

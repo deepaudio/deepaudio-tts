@@ -1,0 +1,61 @@
+_target_: deepaudio.tts.models.tacotron2.model.Tacotron2Model
+
+optimizer:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: 0.001
+  weight_decay: 0.0
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  _partial_: true
+  mode: min
+  factor: 0.1
+  patience: 10
+
+loss_type: L1+L2
+use_guided_attn_loss: True
+
+taco2_loss:
+  _target_: deepaudio.tts.models.tacotron2.lossTacotron2Loss
+  use_masking: True
+  use_weighted_masking: False
+  bce_pos_weight: 5.0
+
+attn_loss:
+  _target_: deepaudio.tts.models.tacotron2.GuidedAttentionLoss
+  sigma: 0.4
+  alpha: 1.0
+  reset_always: True
+
+model:
+  _target_: deepaudio.tts.models.tacotron2.tacotron2.Tacotron2
+  idim: 80
+  odim: 80
+  embed_dim: 512               # char or phn embedding dimension
+  elayers: 1                   # number of blstm layers in encoder
+  eunits: 512                  # number of blstm units
+  econv_layers: 3              # number of convolutional layers in encoder
+  econv_chans: 512             # number of channels in convolutional layer
+  econv_filts: 5               # filter size of convolutional layer
+  atype: location              # attention function type
+  adim: 512                    # attention dimension
+  aconv_chans: 32              # number of channels in convolutional layer of attention
+  aconv_filts: 15              # filter size of convolutional layer of attention
+  cumulate_att_w: True         # whether to cumulate attention weight
+  dlayers: 2                   # number of lstm layers in decoder
+  dunits: 1024                 # number of lstm units in decoder
+  prenet_layers: 2             # number of layers in prenet
+  prenet_units: 256            # number of units in prenet
+  postnet_layers: 5            # number of layers in postnet
+  postnet_chans: 512           # number of channels in postnet
+  postnet_filts: 5             # filter size of postnet layer
+  output_activation: null      # activation function for the final output
+  use_batch_norm: True         # whether to use batch normalization in encoder
+  use_concate: True            # whether to concatenate encoder embedding with decoder outputs
+  use_residual: False          # whether to use residual connection in encoder
+  dropout_rate: 0.5            # dropout rate
+  zoneout_rate: 0.1            # zoneout rate
+  reduction_factor: 1          # reduction factor
+  spk_embed_dim: null          # speaker embedding dimension
+
