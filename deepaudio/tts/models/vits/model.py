@@ -93,7 +93,6 @@ class VitsModel(LightningModule):
         # Disctiminator
         if optimizer_idx == 1:
             forward_generator = False
-            forward_generator = True
             outs = self.step(batch, forward_generator)
             # parse outputs
             speech_hat_, _, _, start_idxs, *_ = outs

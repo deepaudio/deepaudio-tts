@@ -26,6 +26,7 @@ class MelganModel(LightningModule):
                  scheduler_d: torch.optim.lr_scheduler,
                  optimizer_g: torch.optim.Optimizer,
                  scheduler_g: torch.optim.lr_scheduler,
+                 discriminator_train_start_steps: int = 100000,
                  ):
         super(MelganModel, self).__init__()
 
@@ -43,67 +44,84 @@ class MelganModel(LightningModule):
                                                         "criterion_gen_adv",
                                                         "criterion_dis_adv",
                                                         "criterion_pqmf",])
+        self.automatic_optimization = False
 
-    def training_step(self, batch: tuple, batch_idx: int, optimizer_idx: int):
+    def step_generator(self, wav, mel, batch_idx):
         losses_dict = {}
-        # parse batch
-        wav, mel = batch
-        # Generator
-        if optimizer_idx == 0:
-            # (B, out_channels, T ** prod(upsample_scales)
+        wav_ = self.generator(mel)
+        wav_mb_ = wav_
+        # (B, 1, out_channels*T ** prod(upsample_scales)
+        wav_ = self.criterion_pqmf.synthesis(wav_mb_)
 
-            wav_ = self.generator(mel)
-            wav_mb_ = wav_
-            # (B, 1, out_channels*T ** prod(upsample_scales)
-            wav_ = self.criterion_pqmf.synthesis(wav_mb_)
+        # initialize
+        gen_loss = 0.0
+        aux_loss = 0.0
 
-            # initialize
-            gen_loss = 0.0
-            aux_loss = 0.0
+        # full band Multi-resolution stft loss
+        sc_loss, mag_loss = self.criterion_stft(wav_, wav)
+        # for balancing with subband stft loss
+        # Eq.(9) in paper
+        aux_loss += 0.5 * (sc_loss + mag_loss)
+        losses_dict["spectral_convergence_loss"] = sc_loss
+        losses_dict["log_stft_magnitude_loss"] = mag_loss
 
-            # full band Multi-resolution stft loss
-            sc_loss, mag_loss = self.criterion_stft(wav_, wav)
-            # for balancing with subband stft loss
-            # Eq.(9) in paper
-            aux_loss += 0.5 * (sc_loss + mag_loss)
-            losses_dict["spectral_convergence_loss"] = sc_loss
-            losses_dict["log_stft_magnitude_loss"] = mag_loss
+        # sub band Multi-resolution stft loss
+        # (B, subbands, T // subbands)
+        wav_mb = self.criterion_pqmf.analysis(wav)
+        sub_sc_loss, sub_mag_loss = self.criterion_sub_stft(wav_mb_, wav_mb)
+        # Eq.(9) in paper
+        aux_loss += 0.5 * (sub_sc_loss + sub_mag_loss)
+        losses_dict["sub_spectral_convergence_loss"] = sub_sc_loss
+        losses_dict["sub_log_stft_magnitude_loss"] = sub_mag_loss
 
-            # sub band Multi-resolution stft loss
-            # (B, subbands, T // subbands)
-            wav_mb = self.criterion_pqmf.analysis(wav)
-            sub_sc_loss, sub_mag_loss = self.criterion_sub_stft(wav_mb_, wav_mb)
-            # Eq.(9) in paper
-            aux_loss += 0.5 * (sub_sc_loss + sub_mag_loss)
-            losses_dict["sub_spectral_convergence_loss"] = sub_sc_loss
-            losses_dict["sub_log_stft_magnitude_loss"] = sub_mag_loss
+        gen_loss += aux_loss * self.hparams.lambda_aux
 
-            gen_loss += aux_loss * self.hparams.lambda_aux
-
-            # adversarial loss TODO
+        # adversarial loss
+        if batch_idx > self.hparams.discriminator_train_start_steps:
             p_ = self.discriminator(wav_)
             adv_loss = self.criterion_gen_adv(p_)
             losses_dict["adversarial_loss"] = float(adv_loss)
             gen_loss += self.hparams.lambda_adv * adv_loss
-            self.log_dict(losses_dict)
-            return gen_loss
+        self.log_dict(losses_dict)
+        return gen_loss
 
+    def step_disctiminator(self, wav, mel):
+        losses_dict = {}
+        with torch.no_grad():
+            wav_ = self.generator(mel)
+        wav_ = self.criterion_pqmf.synthesis(wav_)
+        p = self.discriminator(wav)
+        p_ = self.discriminator(wav_.detach())
+        real_loss, fake_loss = self.criterion_dis_adv(p_, p)
+        dis_loss = real_loss + fake_loss
+        losses_dict["real_loss"] = real_loss
+        losses_dict["fake_loss"] = fake_loss
+        losses_dict["discriminator_loss"] = dis_loss
+        self.log_dict(losses_dict)
+        return dis_loss
+
+    def training_step(self, batch: tuple, batch_idx: int, optimizer_idx: int):
+        opt_g, opt_d = self.optimizers()
+        sch_g, sch_d = self.lr_schedulers()
+
+        # parse batch
+        wav, mel = batch
+        # Generator
+        gen_loss = self.step_generator(wav, mel, batch_idx)
+        opt_g.zero_grad()
+        self.manual_backward(gen_loss)
+        opt_g.step()
+        sch_g.step()
 
         # Disctiminator
-        if optimizer_idx == 1:
-            # re-compute wav_ which leads better quality
-            with torch.no_grad():
-                wav_ = self.generator(mel)
-            wav_ = self.criterion_pqmf.synthesis(wav_)
-            p = self.discriminator(wav)
-            p_ = self.discriminator(wav_.detach())
-            real_loss, fake_loss = self.criterion_dis_adv(p_, p)
-            dis_loss = real_loss + fake_loss
-            losses_dict["real_loss"] = real_loss
-            losses_dict["fake_loss"] = fake_loss
-            losses_dict["discriminator_loss"] = dis_loss
-            self.log_dict(losses_dict)
-            return dis_loss
+        if batch_idx > self.hparams.discriminator_train_start_steps:
+            #re-compute wav_ which leads better quality
+            dis_loss = self.step_disctiminator(wav, mel)
+            opt_d.zero_grad()
+            self.manual_backward(dis_loss)
+            opt_d.step()
+            sch_d.step()
+
 
     def configure_optimizers(self):
         optimizer_g = self.hparams.optimizer_g(params=self.generator.parameters())
