@@ -22,6 +22,10 @@ from torch.autograd import Variable
 from torch.nn import functional as F
 from scipy import signal
 
+from distutils.version import LooseVersion
+
+is_pytorch_17plus = LooseVersion(torch.__version__) >= LooseVersion("1.7")
+
 from deepaudio.tts.modules.nets_utils import make_non_pad_mask
 
 
@@ -436,14 +440,22 @@ def stft(x,
     # calculate window
     window = signal.get_window(window, win_length, fftbins=True)
     window = torch.from_numpy(window).to(device=x.device, dtype=x.dtype)
-    x_stft = torch.stft(
-        x,
-        fft_size,
-        hop_length,
-        win_length,
-        window=window,
-        center=center,
-        pad_mode=pad_mode)
+    if is_pytorch_17plus:
+        x_stft = torch.stft(
+            x, fft_size, hop_length, win_length, window,
+            center=center,
+            pad_mode=pad_mode,
+            return_complex=False
+        )
+    else:
+        x_stft = torch.stft(
+            x,
+            fft_size,
+            hop_length,
+            win_length,
+            window=window,
+            center=center,
+            pad_mode=pad_mode)
 
     real = x_stft[:, :, 0]
     imag = x_stft[:, :, 1]
